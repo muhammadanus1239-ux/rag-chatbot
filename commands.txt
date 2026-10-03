@@ -1,0 +1,9 @@
+Project dobara chalane ke steps:
+1. Docker Desktop kholo, running hone tak wait karo
+2. .venv\Scripts\Activate.ps1   (agar (.venv) na dikhe)
+3. docker compose up -d
+4. docker compose ps
+5. uvicorn app.main:app --reload
+6. Browser: http://127.0.0.1:8000/docs, phir Authorize se login
+
+Kabhi mat chalana: docker compose down -v   (database ka data delete ho jata hai)

@@ -1,0 +1,84 @@
+"""create rag tables
+
+Revision ID: adfe1be678e0
+Revises:
+Create Date: 2026-10-02 04:34:04.930516
+
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+import pgvector.sqlalchemy
+from sqlalchemy.dialects import postgresql
+
+# revision identifiers, used by Alembic.
+revision: str = 'adfe1be678e0'
+down_revision: Union[str, Sequence[str], None] = None
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    """Upgrade schema."""
+    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+
+    op.create_table(
+        'users',
+        sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('email', sa.String(length=255), nullable=False),
+        sa.Column('hashed_password', sa.String(length=255), nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+        sa.PrimaryKeyConstraint('id'),
+    )
+    op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)
+
+    op.create_table(
+        'documents',
+        sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('user_id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('filename', sa.String(length=255), nullable=False),
+        sa.Column('content_type', sa.String(length=100), nullable=True),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('id'),
+    )
+    op.create_index(op.f('ix_documents_user_id'), 'documents', ['user_id'], unique=False)
+
+    op.create_table(
+        'messages',
+        sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('user_id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('role', sa.String(length=20), nullable=False),
+        sa.Column('content', sa.Text(), nullable=False),
+        sa.Column('sources', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('id'),
+    )
+    op.create_index(op.f('ix_messages_user_id'), 'messages', ['user_id'], unique=False)
+
+    op.create_table(
+        'chunks',
+        sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('document_id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('chunk_index', sa.Integer(), nullable=False),
+        sa.Column('content', sa.Text(), nullable=False),
+        sa.Column('embedding', pgvector.sqlalchemy.vector.VECTOR(dim=1536), nullable=True),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+        sa.ForeignKeyConstraint(['document_id'], ['documents.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('id'),
+    )
+    op.create_index(op.f('ix_chunks_document_id'), 'chunks', ['document_id'], unique=False)
+
+
+def downgrade() -> None:
+    """Downgrade schema."""
+    op.drop_index(op.f('ix_chunks_document_id'), table_name='chunks')
+    op.drop_table('chunks')
+    op.drop_index(op.f('ix_messages_user_id'), table_name='messages')
+    op.drop_table('messages')
+    op.drop_index(op.f('ix_documents_user_id'), table_name='documents')
+    op.drop_table('documents')
+    op.drop_index(op.f('ix_users_email'), table_name='users')
+    op.drop_table('users')
